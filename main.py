@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel
 import faiss
 import torch
 import os
 import requests
+from allowIP import ALLOWED_IPS
 from bs4 import BeautifulSoup
 import numpy as np
 
@@ -76,6 +77,14 @@ def retrieve_and_generate(query, top_k=5):
     answer = generated_text[len(prompt):].strip()
     
     return answer
+
+@app.middleware("http")
+async def ip_filter_middleware(request: Request, call_next):
+    client_ip = request.client.host
+    if client_ip not in ALLOWED_IPS:
+        raise HTTPException(status_code=403, detail="Unauthorized IP.")
+    response = await call_next(request)
+    return response
 
 # API 엔드포인트 정의
 @app.post("/query")
