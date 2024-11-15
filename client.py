@@ -3,7 +3,7 @@ import requests
 
 FASTAPI_URL = "http://hsj3925.iptime.org:8000/query"
 
-st.title("Bot")
+st.title("허세진 챗봇 이력서")
 
 if "messages" not in st.session_state:
 	st.session_state.messages = []
