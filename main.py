@@ -1,13 +1,15 @@
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel, TextIteratorStreamer
 import faiss
 import torch
 import os
 import requests
 from allowIP import ALLOWED_IPS
 from bs4 import BeautifulSoup
-import numpy as np
+import asyncio
+from threading import Thread
 
 # FastAPI 인스턴스 생성
 app = FastAPI()
@@ -63,20 +65,31 @@ def retrieve_and_generate(query, top_k=5):
 	query_embedding = get_embeddings([query])
 	distances, indices = index.search(query_embedding, top_k)
 	retrieved_texts = [sentences[i] for i in indices[0]]
-	
+
 	prompt = (
 		"이력서 내용을 기반으로 질문에 간단히 답해라 "
-		"\n이력서 내용: " + " ".join(retrieved_texts) + "\n질문: " + query
+		"\n이력서 내용: " + " ".join(retrieved_texts) + "\n질문: " + query + "?"
 	)
-	
+
 	inputs = generation_tokenizer(prompt, return_tensors="pt").to("cuda")
-	output = generation_model.generate(
-		**inputs, max_length=2000, max_new_tokens=500, temperature=0.7
-	)
-	generated_text = generation_tokenizer.decode(output[0], skip_special_tokens=True)
-	answer = generated_text[len(prompt):].strip()
-	
-	return answer
+	streamer = TextIteratorStreamer(generation_tokenizer, True, skip_special_tokens=True)
+
+	# 텍스트 생성을 스트리밍 방식으로 처리하는 generator
+	def text_generator():
+		generation_kwargs = dict(
+			inputs,
+			max_new_tokens=2000,
+			temperature=0.7,
+			do_sample=True,
+			streamer=streamer)
+		thread = Thread(target=generation_model.generate, kwargs=generation_kwargs)
+
+		thread.start()
+
+		return streamer
+
+
+	return text_generator()
 
 @app.middleware("http")
 async def ip_filter_middleware(request: Request, call_next):
@@ -89,5 +102,15 @@ async def ip_filter_middleware(request: Request, call_next):
 # API 엔드포인트 정의
 @app.post("/query")
 async def query_endpoint(request: QueryRequest):
-	result = retrieve_and_generate(request.query)
-	return {"answer": result}
+	return StreamingResponse(retrieve_and_generate(request.query), media_type="text/plain")
+
+if __name__ == "__main__":
+	def main():
+		lis = []
+		for i in retrieve_and_generate("어떤 프로젝트 했어?"):
+			lis.append(i)
+			if i != "?" or '':
+				print(i, end='')
+				
+		print(lis)
+	main()
