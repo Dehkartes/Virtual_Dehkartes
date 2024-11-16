@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel, TextIteratorStreamer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel, TextIteratorStreamer, BitsAndBytesConfig
 import faiss
 import torch
 import os
@@ -46,17 +46,22 @@ d = embeddings.shape[1]
 index = faiss.IndexFlatL2(d)
 index.add(embeddings)
 
-# 텍스트 생성 모델 (EXAONE) 로드
+# BitsAndBytesConfig 객체를 생성
+quantization_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+	bnb_4bit_compute_dtype=torch.float16
+)
+
+# 텍스트 생성 모델 로드
 model_name = "LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct"
 generation_tokenizer = AutoTokenizer.from_pretrained(model_name)
 generation_model = AutoModelForCausalLM.from_pretrained(
 	model_name,
-	load_in_8bit=True,
 	trust_remote_code=True,
+	quantization_config=quantization_config,
 	device_map="auto"
 )
 
-# Pydantic 모델 정의
 class QueryRequest(BaseModel):
 	query: str
 
@@ -67,7 +72,7 @@ def retrieve_and_generate(query, top_k=5):
 	retrieved_texts = [sentences[i] for i in indices[0]]
 
 	prompt = (
-		"이력서 내용을 기반으로 질문에 간단히 답해라 "
+		"이력서 내용을 기반으로 질문에 간단히 1회 답해라 "
 		"\n이력서 내용: " + " ".join(retrieved_texts) + "\n질문: " + query + "?"
 	)
 
@@ -79,7 +84,7 @@ def retrieve_and_generate(query, top_k=5):
 		generation_kwargs = dict(
 			inputs,
 			max_new_tokens=2000,
-			temperature=0.7,
+			temperature=0.5,
 			do_sample=True,
 			streamer=streamer)
 		thread = Thread(target=generation_model.generate, kwargs=generation_kwargs)
