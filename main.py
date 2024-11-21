@@ -88,11 +88,9 @@ def retrieve_and_generate(query, top_k=5):
 			do_sample=True,
 			streamer=streamer)
 		thread = Thread(target=generation_model.generate, kwargs=generation_kwargs)
-
 		thread.start()
 
 		return streamer
-
 
 	return text_generator()
 
