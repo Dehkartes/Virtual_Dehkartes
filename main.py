@@ -48,7 +48,7 @@ index.add(embeddings)
 
 # BitsAndBytesConfig 객체를 생성
 quantization_config = BitsAndBytesConfig(
-    load_in_4bit=True,
+	load_in_4bit=True,
 	bnb_4bit_compute_dtype=torch.float16
 )
 
