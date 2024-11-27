@@ -72,9 +72,11 @@ def retrieve_and_generate(query, top_k=5):
 	retrieved_texts = [sentences[i] for i in indices[0]]
 
 	prompt = (
-		"이력서 내용을 기반으로 질문에 간단히 1회 답해라 "
-		"\n이력서 내용: " + " ".join(retrieved_texts) + "\n질문: " + query + "?"
-	)
+		"이력서 내용: " + " ".join(retrieved_texts) +
+		"\n이력서 내용에 대한 하나의 요청의 답을 단답으로 한 번만 구성해라" + 
+		"\n요청: " + query +
+		"\n답변: " 
+	) 
 
 	inputs = generation_tokenizer(prompt, return_tensors="pt").to("cuda")
 	streamer = TextIteratorStreamer(generation_tokenizer, True, skip_special_tokens=True)
@@ -83,9 +85,9 @@ def retrieve_and_generate(query, top_k=5):
 	def text_generator():
 		generation_kwargs = dict(
 			inputs,
-			max_new_tokens=2000,
-			temperature=0.5,
-			do_sample=True,
+			max_new_tokens=500,
+			temperature=1.0,
+			do_sample=False,
 			streamer=streamer)
 		thread = Thread(target=generation_model.generate, kwargs=generation_kwargs)
 		thread.start()
