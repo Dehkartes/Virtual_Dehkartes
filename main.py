@@ -8,11 +8,16 @@ import os
 import requests
 from allowIP import ALLOWED_IPS
 from bs4 import BeautifulSoup
-import asyncio
+import configparser
 from threading import Thread
+from huggingface_hub import login
 
 # FastAPI 인스턴스 생성
 app = FastAPI()
+
+config = configparser.ConfigParser()
+config.read("secret.ini")
+login(config["TOKEN"]["huggingface"])
 
 # 환경 변수 설정
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -71,27 +76,38 @@ def retrieve_and_generate(query, top_k=5):
 	distances, indices = index.search(query_embedding, top_k)
 	retrieved_texts = [sentences[i] for i in indices[0]]
 
-	prompt = (
-		"이력서 내용: " + " ".join(retrieved_texts) +
-		"\n이력서 내용에 대한 하나의 요청의 답을 단답으로 한 번만 구성해라" + 
-		"\n요청: " + query +
-		"\n답변: " 
-	) 
+	prompt = [
+		{
+			"role": "system", 
+			"content": (
+				"요청에 이력서 내용을 우선으로 단답형으로 응답해라. 단 이력서에 없는 내용은 모른다고 해라\n"
+				"예시(요청: 이름이 뭐야? 응답: 허세진 입니다.)"
+				"이력서 내용: " + " ".join(retrieved_texts))
+		},
+		{"role": "user", "content": query}
+	]
 
-	inputs = generation_tokenizer(prompt, return_tensors="pt").to("cuda")
+	inputs = generation_tokenizer.apply_chat_template(
+		prompt,
+		tokenize=True,
+		add_generation_prompt=True,
+		return_tensors="pt"
+	).to("cuda")
+
 	streamer = TextIteratorStreamer(generation_tokenizer, True, skip_special_tokens=True)
 
 	# 텍스트 생성을 스트리밍 방식으로 처리하는 generator
 	def text_generator():
-		generation_kwargs = dict(
-			inputs,
-			max_new_tokens=500,
-			temperature=1.0,
-			do_sample=False,
-			streamer=streamer)
+		generation_kwargs = {
+			"inputs": inputs,
+			"max_new_tokens": 500,
+			"temperature": 1.0,
+			"do_sample": False,
+			"streamer": streamer
+		}
+
 		thread = Thread(target=generation_model.generate, kwargs=generation_kwargs)
 		thread.start()
-
 		return streamer
 
 	return text_generator()
@@ -104,18 +120,8 @@ async def ip_filter_middleware(request: Request, call_next):
 	response = await call_next(request)
 	return response
 
+
 # API 엔드포인트 정의
 @app.post("/query")
 async def query_endpoint(request: QueryRequest):
 	return StreamingResponse(retrieve_and_generate(request.query), media_type="text/plain")
-
-if __name__ == "__main__":
-	def main():
-		lis = []
-		for i in retrieve_and_generate("어떤 프로젝트 했어?"):
-			lis.append(i)
-			if i != "?" or '':
-				print(i, end='')
-				
-		print(lis)
-	main()
