@@ -4,3 +4,5 @@
 
 # Tech Stack
 - Python 3.10.12
+- FastAPI, Transformers, Faiss
+- LG EXAONE
