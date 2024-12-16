@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, Request, status
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel, TextIteratorStreamer, BitsAndBytesConfig
 import faiss
@@ -116,7 +116,7 @@ def retrieve_and_generate(query, top_k=5):
 async def ip_filter_middleware(request: Request, call_next):
 	client_ip = request.client.host
 	if client_ip not in ALLOWED_IPS:
-		raise HTTPException(status_code=403, detail="Unauthorized IP.")
+		return Response(status_code=status.HTTP_403_FORBIDDEN)
 	response = await call_next(request)
 	return response
 
