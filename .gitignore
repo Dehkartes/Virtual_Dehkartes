@@ -167,6 +167,5 @@ secret.ini
 secret.txt
 allowIP.py
 allowIP.py
-start.bat
 test.ipynb
 test.py
