@@ -72,6 +72,7 @@ class QueryRequest(BaseModel):
 
 # RAG 파이프라인 함수
 def retrieve_and_generate(query, top_k=5):
+	print(query)
 	query_embedding = get_embeddings([query])
 	distances, indices = index.search(query_embedding, top_k)
 	retrieved_texts = [sentences[i] for i in indices[0]]
@@ -124,4 +125,5 @@ async def ip_filter_middleware(request: Request, call_next):
 # API 엔드포인트 정의
 @app.post("/query")
 async def query_endpoint(request: QueryRequest):
+	print(request.query)
 	return StreamingResponse(retrieve_and_generate(request.query), media_type="text/plain")
