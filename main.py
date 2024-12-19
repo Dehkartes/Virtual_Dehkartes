@@ -125,5 +125,4 @@ async def ip_filter_middleware(request: Request, call_next):
 # API 엔드포인트 정의
 @app.post("/query")
 async def query_endpoint(request: QueryRequest):
-	print(request.query)
 	return StreamingResponse(retrieve_and_generate(request.query), media_type="text/plain")
