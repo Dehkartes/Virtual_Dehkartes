@@ -121,7 +121,6 @@ async def ip_filter_middleware(request: Request, call_next):
 	response = await call_next(request)
 	return response
 
-
 # API 엔드포인트 정의
 @app.post("/query")
 async def query_endpoint(request: QueryRequest):
