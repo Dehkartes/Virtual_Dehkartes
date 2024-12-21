@@ -11,6 +11,9 @@ from bs4 import BeautifulSoup
 import configparser
 from threading import Thread
 from huggingface_hub import login
+import warnings
+
+warnings.filterwarnings("ignore", message=".*Torch was not compiled with flash attention.*")
 
 # FastAPI 인스턴스 생성
 app = FastAPI()
