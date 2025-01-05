@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 # FastAPI 서버 URL
-FASTAPI_URL = "http://hsj3925.iptime.org:8000/query"
+FASTAPI_URL = "http://hsj3925.iptime.org:8000/ragModel/query"
 
 # 타이틀 및 소개 섹션
 st.title("허세진 챗봇 이력서 🤖")
@@ -59,7 +59,7 @@ if user_msg:
 					result += chunk
 					placeholder.markdown(result)  # 동적으로 메시지 업데이트
 		else:
-			result = "FastAPI 서버 요청이 실패했습니다."
+			result = "FastAPI 서버 요청에 실패했습니다."
 			placeholder.markdown(result)
 
 	st.session_state.messages.append({"role": "assistant", "content": result})
