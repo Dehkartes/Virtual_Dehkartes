@@ -1,15 +1,15 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel, TextIteratorStreamer, BitsAndBytesConfig
+from transformers import TextIteratorStreamer
 import faiss
 import torch
 import os
 import requests
+from core import model
 
 from bs4 import BeautifulSoup
 import configparser
 from threading import Thread
 from huggingface_hub import login
 
-# FastAPI 인스턴스 생성
 config = configparser.ConfigParser()
 config.read("secret.ini")
 login(config["TOKEN"]["huggingface"])
@@ -25,9 +25,8 @@ def crawl_specific_class(url):
 	return specific_content.get_text(strip=True) if specific_content else "지정된 클래스를 찾을 수 없습니다."
 
 # 임베딩을 위한 모델 및 토크나이저 로드
-embedding_model_name = "sentence-transformers/all-MiniLM-L6-v2"
-tokenizer = AutoTokenizer.from_pretrained(embedding_model_name)
-embedding_model = AutoModel.from_pretrained(embedding_model_name)
+tokenizer = model.tokenizer
+embedding_model = model.embedding_model
 
 # 임베딩 함수 정의
 def get_embeddings(texts):
@@ -46,21 +45,9 @@ d = embeddings.shape[1]
 index = faiss.IndexFlatL2(d)
 index.add(embeddings)
 
-# BitsAndBytesConfig 객체를 생성
-quantization_config = BitsAndBytesConfig(
-	load_in_4bit=True,
-	bnb_4bit_compute_dtype=torch.float16
-)
-
 # 텍스트 생성 모델 로드
-model_name = "LGAI-EXAONE/EXAONE-3.0-7.8B-Instruct"
-generation_tokenizer = AutoTokenizer.from_pretrained(model_name)
-generation_model = AutoModelForCausalLM.from_pretrained(
-	model_name,
-	trust_remote_code=True,
-	quantization_config=quantization_config,
-	device_map="auto"
-)
+generation_tokenizer = model.generation_tokenizer
+generation_model = model.generation_model
 
 # RAG 파이프라인 함수
 def pipeLine(query, top_k=5):
@@ -73,9 +60,10 @@ def pipeLine(query, top_k=5):
 		{
 			"role": "system", 
 			"content": (
-				"질문이 이력서에 있는 내용인지 판단해라, 이력서에 없는 내용이면 모른다고 해라\n"
-				"이력서에 있는 내용이면 질문에 단답형으로 응답해라.\n"
-				"예시(요청: 이름이 뭐야? 응답: 허세진 입니다.)"
+				"다음 절차에 따라 질문에 이력서 내용을 기반으로 응답해라\n"
+				"1. 질문이 이력서에 있는 내용인지 판단해라, 이력서에 없는 내용이면 \"이력서에 없는 내용입니다.\"라고 해라.\n"
+				"2. 이력서에 있는 내용이면 질문에 단답형으로 응답해라.\n"
+				"예시(요청: 이메일이 뭐야? 응답: hsj3925@gmail.com 입니다.)\n"
 				"이력서 내용: " + " ".join(retrieved_texts))
 		},
 		{"role": "user", "content": query}
