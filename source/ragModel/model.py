@@ -1,23 +1,15 @@
-from fastapi import FastAPI, Request, status
-from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel, TextIteratorStreamer, BitsAndBytesConfig
 import faiss
 import torch
 import os
 import requests
-from allowIP import ALLOWED_IPS
+
 from bs4 import BeautifulSoup
 import configparser
 from threading import Thread
 from huggingface_hub import login
-import warnings
-
-warnings.filterwarnings("ignore", message=".*Torch was not compiled with flash attention.*")
 
 # FastAPI 인스턴스 생성
-app = FastAPI()
-
 config = configparser.ConfigParser()
 config.read("secret.ini")
 login(config["TOKEN"]["huggingface"])
@@ -70,11 +62,8 @@ generation_model = AutoModelForCausalLM.from_pretrained(
 	device_map="auto"
 )
 
-class QueryRequest(BaseModel):
-	query: str
-
 # RAG 파이프라인 함수
-def retrieve_and_generate(query, top_k=5):
+def pipeLine(query, top_k=5):
 	print(query)
 	query_embedding = get_embeddings([query])
 	distances, indices = index.search(query_embedding, top_k)
@@ -84,7 +73,8 @@ def retrieve_and_generate(query, top_k=5):
 		{
 			"role": "system", 
 			"content": (
-				"요청에 이력서 내용을 우선으로 단답형으로 응답해라. 단 이력서에 없는 내용은 모른다고 해라\n"
+				"질문이 이력서에 있는 내용인지 판단해라, 이력서에 없는 내용이면 모른다고 해라\n"
+				"이력서에 있는 내용이면 질문에 단답형으로 응답해라.\n"
 				"예시(요청: 이름이 뭐야? 응답: 허세진 입니다.)"
 				"이력서 내용: " + " ".join(retrieved_texts))
 		},
@@ -115,16 +105,3 @@ def retrieve_and_generate(query, top_k=5):
 		return streamer
 
 	return text_generator()
-
-@app.middleware("http")
-async def ip_filter_middleware(request: Request, call_next):
-	client_ip = request.client.host
-	if client_ip not in ALLOWED_IPS:
-		return Response(status_code=status.HTTP_403_FORBIDDEN)
-	response = await call_next(request)
-	return response
-
-# API 엔드포인트 정의
-@app.post("/query")
-async def query_endpoint(request: QueryRequest):
-	return StreamingResponse(retrieve_and_generate(request.query), media_type="text/plain")
